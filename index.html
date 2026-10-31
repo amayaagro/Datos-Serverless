@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buscador Serverless - UTP Computer & Systems</title>
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; }
+        body { background-color: #f4f7f6; margin: 0; padding: 30px; }
+        .container { max-width: 950px; margin: 0 auto; background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        h1 { color: #1a73e8; margin-top: 0; text-align: center; }
+        p.subtitle { text-align: center; color: #666; margin-bottom: 20px; }
+        .search-box { display: flex; gap: 10px; margin-bottom: 20px; }
+        select, input { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+        select { background: #f8f9fa; }
+        input { flex: 1; }
+        button { padding: 10px 20px; background: #1a73e8; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #1557b0; }
+        .info-bar { display: flex; justify-content: space-between; font-size: 13px; color: #777; margin-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 5px; }
+        th, td { border: 1px solid #e0e0e0; padding: 10px; text-align: left; font-size: 14px; }
+        th { background-color: #1a73e8; color: #fff; }
+        tr:nth-child(even) { background-color: #f9fbfd; }
+        .badge { background: #e8f0fe; color: #1a73e8; padding: 3px 6px; border-radius: 3px; font-weight: bold; }
+        .empty { text-align: center; color: #888; padding: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Buscador Serverless de Registros</h1>
+        <p class="subtitle">Interfaz Ligera en HTML5 y JavaScript Conectada Directamente a Firestore</p>
+
+        <!-- Panel de Consulta por Campo Clave -->
+        <div class="search-box">
+            <select id="campoClave">
+                <option value="todos">Todos los Campos</option>
+                <option value="Asignatura">Asignatura</option>
+                <option value="Cod">Código (ID)</option>
+                <option value="Anio">Año</option>
+            </select>
+            <input type="text" id="searchInput" placeholder="Escriba para filtrar por campo clave..." onkeyup="if(event.key==='Enter') buscarDatos()">
+            <button onclick="buscarDatos()">Buscar</button>
+        </div>
+
+        <div class="info-bar">
+            <span id="contador">Cargando registros...</span>
+            <span>Conexión Serverless: Cloud Firestore</span>
+        </div>
+
+        <!-- Tabla Dinámica de Resultados -->
+        <table>
+            <thead>
+                <tr>
+                    <th>Año</th>
+                    <th>Asignatura</th>
+                    <th>Código ID</th>
+                    <th>Créditos</th>
+                    <th>Horas Clase</th>
+                </tr>
+            </thead>
+            <tbody id="cuerpoTabla">
+                <tr><td colspan="5" class="empty">Conectando con la base de datos...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Firebase SDK Modular (v13.1.0) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
+        import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
+
+        // Configuración de Firebase Web Client
+        const firebaseConfig = {
+            apiKey: "AIzaSyDSvBSQ7Y8n-3T4pzG3lbnVRgi6BgyVbjY",
+            authDomain: "appserverlesskagglepoli.firebaseapp.com",
+            projectId: "appserverlesskagglepoli",
+            storageBucket: "appserverlesskagglepoli.firebasestorage.app",
+            messagingSenderId: "516244997239",
+            appId: "1:516244997239:web:aa155a374c2e833381f272"
+        };
+
+        // Inicializar Firebase y Firestore
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        let datasetLocal = [];
+
+        // Consulta inicial directa a Firestore
+        async function cargarRegistros() {
+            try {
+                const querySnapshot = await getDocs(collection(db, 'registros_dataset'));
+                datasetLocal = [];
+                querySnapshot.forEach(doc => {
+                    datasetLocal.push(doc.data());
+                });
+                renderizarTabla(datasetLocal);
+            } catch (err) {
+                console.error("Error al leer Firestore:", err);
+                document.getElementById('cuerpoTabla').innerHTML = '<tr><td colspan="5" class="empty">Error de conexión.</td></tr>';
+            }
+        }
+
+        window.onload = cargarRegistros;
+
+        // Lógica interactiva de filtrado por campo clave
+        window.buscarDatos = function() {
+            const query = document.getElementById('searchInput').value.trim().toLowerCase();
+            const campo = document.getElementById('campoClave').value;
+
+            if (!query) {
+                renderizarTabla(datasetLocal);
+                return;
+            }
+
+            const filtrados = datasetLocal.filter(item => {
+                if (campo === 'todos') {
+                    return JSON.stringify(item).toLowerCase().includes(query);
+                } else if (item[campo] !== undefined) {
+                    return String(item[campo]).toLowerCase().includes(query);
+                }
+                return false;
+            });
+
+            renderizarTabla(filtrados);
+        };
+
+        // Actualización del DOM en HTML5
+        function renderizarTabla(datos) {
+            const tbody = document.getElementById('cuerpoTabla');
+            tbody.innerHTML = '';
+
+            if (datos.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty">No hay coincidencias.</td></tr>';
+                document.getElementById('contador').innerText = '0 registros';
+                return;
+            }
+
+            datos.forEach(item => {
+                tbody.innerHTML += `<tr>
+                    <td>${item.Anio || '-'}</td>
+                    <td><strong>${item.Asignatura || '-'}</strong></td>
+                    <td><span class="badge">${item.Cod || '-'}</span></td>
+                    <td>${item.Cred || '-'}</td>
+                    <td>${item.Hclas || '-'}</td>
+                </tr>`;
+            });
+
+            document.getElementById('contador').innerText = `Mostrando ${datos.length} registros`;
+        }
+    </script>
+</body>
+</html>
